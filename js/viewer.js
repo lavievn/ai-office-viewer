@@ -12,7 +12,7 @@ export function installViewerGuard() {
   };
   globalThis.WebSocket = class { constructor() { throw new Error('Read-only viewer: WebSocket disabled'); } };
   const style = document.createElement('style');
-  style.textContent = '#btn-brief,#btn-add,#btn-attach,#p-stop,#p-reset,#p-edit,#p-del,#composer,#perms,#toolbar a{display:none!important}#btn-depts,#btn-cost{display:inline-flex!important}';
+  style.textContent = '#btn-brief,#btn-add,#btn-attach,#btn-depts,#btn-cost,#p-stop,#p-reset,#p-edit,#p-del,#composer,#perms,#toolbar a,#modal{display:none!important}';
   document.head.append(style);
   const badge = document.createElement('div'); badge.id = 'viewer-status'; badge.className = 'eyebrow';
   document.querySelector('#hud').prepend(badge);
@@ -39,8 +39,8 @@ export async function viewerState() {
       data = await response.json();
     }
     const tasks = [...data.activeTasks, ...data.recentTasks].map(t => ({ ...t, startedAt: Date.parse(t.startedAt) || null, updatedAt: Date.parse(t.updatedAt) || null, finishedAt: ['done', 'failed', 'cancelled'].includes(t.status) ? Date.parse(t.updatedAt) : null }));
-    const agents = data.agents.map(a => ({ ...a, status: a.state === 'reviewing' ? 'working' : a.state, provider: a.providerLabel, departmentId: layout.seats[a.id] ?? layout.departments.find(d => d.style?.shape === 'zone')?.id, currentTask: tasks.find(t => t.id === a.currentTaskId), queued: tasks.filter(t => t.agentId === a.id && t.status === 'queued').length }));
+    const agents = data.agents.map(a => ({ ...a, status: a.state, provider: '', departmentId: layout.seats[a.id] ?? layout.departments.find(d => d.style?.shape === 'zone')?.id, currentTask: tasks.find(t => t.id === a.currentTaskId), queued: tasks.filter(t => t.agentId === a.id && t.status === 'queued').length }));
     latest = data.updatedAt; failed = false;
-    return { departments: layout.departments, agents, tasks, permissions: [], feed: data.feed ?? [], costSummary: data.costSummary };
+    return { departments: layout.departments, agents, tasks, permissions: [], feed: [] };
   } catch (error) { failed = true; throw error; }
 }
