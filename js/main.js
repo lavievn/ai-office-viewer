@@ -315,7 +315,7 @@ function renderTaskBoard() {
     const timeStr = refTs ? ago(refTs) : '';
     const errTip = t.error ? ` — Lỗi: ${t.error.slice(0, 140)}` : '';
     return `
-      <button type="button" class="task-row st-${esc(t.status)}" data-task-agent="${esc(t.agentId || '')}" title="${esc(title)} (${esc(who)} · ${esc(stLabel)}${esc(errTip)})">
+      <button type="button" class="task-row st-${esc(t.status)}" data-task-id="${esc(t.id)}" data-task-agent="${esc(t.agentId || '')}" title="${esc(title)} (${esc(who)} · ${esc(stLabel)}${esc(errTip)})">
         <div class="task-row-info">
           <div class="task-row-title">${esc(title)}</div>
           <div class="task-row-meta"><b>${esc(who)}</b> · ${esc(stLabel)}${timeStr ? ` · ${esc(timeStr)}` : ''}</div>
@@ -329,6 +329,7 @@ function renderTaskBoard() {
 $('#task-list')?.addEventListener('click', (e) => {
   const row = e.target.closest('.task-row');
   if (!row) return;
+  if (READ_ONLY) { selectedTaskId = row.dataset.taskId; renderViewerTask(); return; }
   const aid = row.dataset.taskAgent;
   if (aid && agentById(aid)) {
     openPanel(aid);
@@ -336,6 +337,12 @@ $('#task-list')?.addEventListener('click', (e) => {
   }
 });
 
+let selectedTaskId = null;
+function renderViewerTask() {
+  const t = state.tasks.find(t => t.id === selectedTaskId); if (!t) return;
+  openModal(`<h3>${esc(t.title)}</h3><p>${esc(t.status)} · ${esc(agentById(t.agentId)?.name ?? '')} · ${t.durationSec ?? 0}s</p><p>${esc(t.startedAt ? new Date(t.startedAt).toLocaleString() : '')}</p><p>${esc(t.summary ?? '')}</p><h4>Phản hồi / Kết quả</h4><pre style="white-space:pre-wrap">${esc(t.response ?? '')}</pre><h4>Reviewer verdict</h4><p>${esc(t.reviewerVerdict ?? '')}</p><button class="btn" data-close>Đóng</button>`);
+  $('#modal').querySelector('[data-close]').addEventListener('click', () => { selectedTaskId = null; });
+}
 // ---------------- HUD & feed (ngôn ngữ cợt nhả cho riêng màn 3D)
 function isReviewerAgent(a) {
   return /review/i.test(a?.id || '') || /review/i.test(a?.role || '') || /review/i.test(a?.name || '');
@@ -440,7 +447,7 @@ function narrateFeedEvent(e) {
 
 /** Dòng sự kiện góc dưới: chỉ giữ tin trong 3 phút gần nhất cho đỡ che khu cà phê / giải trí */
 function renderFeed() {
-  const fresh = state.feed.filter(e => Date.now() - e.ts < 180000);
+  const fresh = READ_ONLY ? state.feed : state.feed.filter(e => Date.now() - e.ts < 180000);
   $('#feed').innerHTML = fresh.slice(-4).map(e => `<div>${hhmm(e.ts)} · ${narrateFeedEvent(e)}</div>`).join('');
 }
 
@@ -452,7 +459,7 @@ async function openPanel(id, { fromDrone = false } = {}) {
   panelManualLock = !fromDrone;
   selectedId = id; $('#panel').classList.add('open'); document.body.classList.add('panel-open'); renderPanel(); office.select(id);
   if (!fromDrone) office.setDroneLock(id);
-  const evs = await api(`/agents/${id}/events?limit=200`).catch(() => []);
+  const evs = READ_ONLY ? agentById(id)?.messages ?? [] : await api(`/agents/${id}/events?limit=200`).catch(() => []);
   if (selectedId !== id) return;
   $('#log').innerHTML = ''; evs.forEach(appendLog); $('#log').scrollTop = 1e9;
 }
@@ -488,6 +495,11 @@ function renderPanel() {
   $('#composer').style.display = observer ? 'none' : 'flex';
   $('#p-stop').style.display = observer ? 'none' : '';
   $('#p-reset').style.display = observer ? 'none' : '';
+  if (READ_ONLY) {
+    $('#log').innerHTML = '';
+    if (a.currentTaskTitle) appendLog({kind:'task',ts:Date.now(),text:a.currentTaskTitle});
+    (a.messages ?? []).forEach(appendLog);
+  }
   renderPerms();
 }
 function renderPerms() {
@@ -530,7 +542,7 @@ $('#p-edit').onclick = () => agentForm(agentById(selectedId));
 
 // ---------------- Modal
 function openModal(html) { $('#modal-box').innerHTML = html; $('#modal').classList.add('open'); }
-function closeModal() { $('#modal').classList.remove('open'); }
+function closeModal() { selectedTaskId = null; $('#modal').classList.remove('open'); }
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' || e.target.dataset.close !== undefined) closeModal(); });
 const opt = (v, cur, label = v) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(label)}</option>`;
 
@@ -548,7 +560,7 @@ function agentForm(a = {}, isEdit = !!a.id && !!agentById(a.id)) {
         <div class="field"><label>Động cơ AI</label><select name="provider">${state.providers.map(p => opt(p, a.provider ?? 'codex', PROVIDER_LABEL[p] ?? p)).join('')}</select></div>
         <div class="field" data-for="${toolProviders} anthropic-chat openai-chat"><label>Model (bỏ trống = mặc định)</label><input name="model" value="${esc(a.model)}" /></div>
       </div>
-      <div class="field" data-for="${toolProviders}"><label>Thư mục cày việc (cwd)</label><input name="cwd" value="${esc(a.cwd)}" placeholder="Project workspace" /><small>Khóa trong thư mục này kẻo nó nghịch lung tung.</small></div>
+      <div class="field" data-for="${toolProviders}"><label>Thư mục cày việc (cwd)</label><input name="cwd" value="${esc(a.cwd)}" placeholder="project-workspace" /><small>Khóa trong thư mục này kẻo nó nghịch lung tung.</small></div>
       <div class="field" data-for="${toolProviders}"><label>Độ liều (Quyền)</label><select name="permissionMode">
         ${opt('default', a.permissionMode ?? 'default', 'Ngoan: sửa gì cũng giơ tay hỏi sếp')}
         ${opt('acceptEdits', a.permissionMode, 'Tự sửa file, chạy lệnh mới hỏi')}
@@ -686,6 +698,11 @@ const PROVIDER_SHORT = {
 };
 let costRange = 'today';
 async function renderCost(range = 'today') {
+  if (READ_ONLY) {
+    const box = $('#cost-box'), d = state.costSummary;
+    if (box) box.innerHTML = d ? `<h4>Ước tính (Estimated)</h4><p>Input $${d.inputRate}/1M · Output $${d.outputRate}/1M · Tổng $${d.total.costUsd.toFixed(4)}</p>${d.agents.map(a => `<p>${esc(agentById(a.agentId)?.name ?? a.agentId)}: ${a.totalTokens} tokens · $${a.costUsd.toFixed(4)} ${a.estimated ? '(Estimated)' : ''}</p>`).join('')}` : '<p>Chưa có số liệu</p>';
+    return;
+  }
   costRange = range;
   const box = $('#cost-box'); if (!box) return;
   let d;
@@ -716,6 +733,7 @@ async function renderCost(range = 'today') {
   box.querySelectorAll('[data-range]').forEach(b => b.onclick = () => renderCost(b.dataset.range));
 }
 $('#btn-cost').onclick = () => {
+  selectedTaskId = null;
   openModal('<h3>Soi hóa đơn đốt token</h3><div id="cost-box"><p class="muted">Đang cộng sổ…</p></div><div class="modal-actions"><button class="btn" data-close>Đóng sổ</button></div>');
   renderCost('today');
 };
@@ -725,7 +743,7 @@ async function loadState() {
   const s = await api('/state');
   Object.assign(state, s);
   office.setData(state.departments, state.agents);
-  renderHud(); renderTaskBoard(); renderFeed(); if (selectedId) renderPanel();
+  renderHud(); renderTaskBoard(); renderFeed(); if (selectedId) renderPanel(); if (READ_ONLY && selectedTaskId && $('#modal').classList.contains('open')) renderViewerTask(); if (READ_ONLY && $('#cost-box')) renderCost();
 }
 function connect() {
   if (READ_ONLY) {
@@ -789,3 +807,11 @@ renderDrone();
 setInterval(() => { if (state.agents.length) { renderHud(); renderTaskBoard(); } }, 30_000);
 window.__office = office; // tiện debug: __office.stats()
 connect();
+
+if (READ_ONLY) {
+  $('#btn-depts').onclick = () => {
+    selectedTaskId = null;
+    openModal(`<h3>Phòng ban / Agents</h3>${state.departments.map(d => `<p><b>${esc(d.name)}</b></p>${state.agents.filter(a => a.departmentId === d.id).map(a => `<button class="btn small" data-view-agent="${esc(a.id)}">${esc(a.name)} · ${esc(a.status)}</button>`).join('')}`).join('')}<p><button class="btn" data-close>Đóng</button></p>`);
+    $('#modal-box').querySelectorAll('[data-view-agent]').forEach(b => b.onclick = () => { closeModal(); openPanel(b.dataset.viewAgent); office.flyTo(b.dataset.viewAgent); });
+  };
+}
