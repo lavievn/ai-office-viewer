@@ -227,10 +227,10 @@ if (taskBoardEl && taskBoardToggle) {
 const TASK_STATUS_RANK = {
   running: 0,
   queued: 1,
-  paused: 1,
-  done: 2,
-  failed: 3,
-  cancelled: 3,
+  paused: 2,
+  done: 3,
+  failed: 4,
+  cancelled: 4,
 };
 const TASK_STATUS_LABEL = {
   running: 'Đang chạy',
@@ -548,7 +548,7 @@ function agentForm(a = {}, isEdit = !!a.id && !!agentById(a.id)) {
         <div class="field"><label>Động cơ AI</label><select name="provider">${state.providers.map(p => opt(p, a.provider ?? 'codex', PROVIDER_LABEL[p] ?? p)).join('')}</select></div>
         <div class="field" data-for="${toolProviders} anthropic-chat openai-chat"><label>Model (bỏ trống = mặc định)</label><input name="model" value="${esc(a.model)}" /></div>
       </div>
-      <div class="field" data-for="${toolProviders}"><label>Thư mục cày việc (cwd)</label><input name="cwd" value="${esc(a.cwd)}" placeholder="Project workspace" /><small>Khóa trong thư mục này kẻo nó nghịch lung tung.</small></div>
+      <div class="field" data-for="${toolProviders}"><label>Thư mục cày việc (cwd)</label><input name="cwd" value="${esc(a.cwd)}" placeholder="C:\\du-an\\game" /><small>Khóa trong thư mục này kẻo nó nghịch lung tung.</small></div>
       <div class="field" data-for="${toolProviders}"><label>Độ liều (Quyền)</label><select name="permissionMode">
         ${opt('default', a.permissionMode ?? 'default', 'Ngoan: sửa gì cũng giơ tay hỏi sếp')}
         ${opt('acceptEdits', a.permissionMode, 'Tự sửa file, chạy lệnh mới hỏi')}

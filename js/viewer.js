@@ -38,7 +38,13 @@ export async function viewerState() {
       if (!response.ok) throw Error('Snapshot unavailable');
       data = await response.json();
     }
-    const tasks = [...data.activeTasks, ...data.recentTasks].map(t => ({ ...t, startedAt: Date.parse(t.startedAt) || null, updatedAt: Date.parse(t.updatedAt) || null, finishedAt: ['done', 'failed', 'cancelled'].includes(t.status) ? Date.parse(t.updatedAt) : null }));
+    const tasks = [...data.activeTasks, ...data.recentTasks].map(t => {
+      const updatedAt = Date.parse(t.updatedAt) || null;
+      const createdAt = Date.parse(t.createdAt) || null;
+      const startedAt = Date.parse(t.startedAt) || null;
+      const finishedAt = Date.parse(t.finishedAt) || (['done', 'failed', 'cancelled'].includes(t.status) ? updatedAt : null);
+      return { ...t, createdAt, startedAt, updatedAt, finishedAt };
+    });
     const agents = data.agents.map(a => ({ ...a, status: a.state, provider: '', departmentId: layout.seats[a.id] ?? layout.departments.find(d => d.style?.shape === 'zone')?.id, currentTask: tasks.find(t => t.id === a.currentTaskId), queued: tasks.filter(t => t.agentId === a.id && t.status === 'queued').length }));
     latest = data.updatedAt; failed = false;
     return { departments: layout.departments, agents, tasks, permissions: [], feed: [] };
