@@ -725,6 +725,7 @@ async function loadState() {
   const s = await api('/state');
   Object.assign(state, s);
   office.setData(state.departments, state.agents);
+  office.setActiveTasks(state.tasks);
   renderHud(); renderTaskBoard(); renderFeed(); if (selectedId) renderPanel();
 }
 function connect() {

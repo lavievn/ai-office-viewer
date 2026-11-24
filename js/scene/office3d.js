@@ -53,6 +53,8 @@ export class Office3D {
     this.clusters = [];          // nhóm bàn có đèn thả
     this.hitboxes = [];
     this.couriers = [];
+    this.taskBeams = new Map();  // taskId -> active blue light beam visual
+    this.lastActiveTasks = [];
     this.selectedId = null; this.hoveredId = null;
     this.screens = new ScreenBank();
     this.assets = new Assets();
@@ -215,6 +217,7 @@ export class Office3D {
 
   rebuild(departments, agents) {
     // dọn bản cũ
+    this.disposeTaskBeams();
     for (const v of this.agents.values()) v.person.dispose();
     disposeTree(this.layout); disposeTree(this.dynamic);
     this.scene.remove(this.layout, this.dynamic);
@@ -245,6 +248,7 @@ export class Office3D {
     build.traverse(o => { if (o !== build && o.userData.dynamic && !o.parent?.userData.dynamic) leftovers.push(o); });
     for (const o of leftovers) { o.updateMatrixWorld(true); const m = o.matrixWorld.clone(); o.parent.remove(o); m.decompose(o.position, o.quaternion, o.scale); this.dynamic.add(o); }
     this.applyShadows();
+    if (this.lastActiveTasks?.length) this.setActiveTasks(this.lastActiveTasks);
   }
 
   // ---------------------------------------------------------------- thảm phòng ban + nhãn
@@ -821,6 +825,187 @@ export class Office3D {
     this.couriers.push({ curve, dot, trail, t: 0 });
   }
 
+  // ================================================================ tia sáng xanh nối người giao -> người thực thi
+  headPosOf(v) {
+    const a = v.person.anchor;
+    const baseY = v.label?.position.y ?? (v.pos.y + 0.65);
+    return new THREE.Vector3(a.x, baseY + 0.28, a.z);
+  }
+
+  buildBeamCurve(fromPos, toPos, arcBoost = 0) {
+    const mid = fromPos.clone().lerp(toPos, 0.5);
+    mid.y = Math.max(fromPos.y, toPos.y) + 1.15 + Math.min(2.4, fromPos.distanceTo(toPos) * 0.14) + arcBoost;
+    return new THREE.QuadraticBezierCurve3(fromPos.clone(), mid, toPos.clone());
+  }
+
+  createTaskBeam(key, fromId, toId, slotIndex = 0) {
+    const fromV = this.agents.get(fromId), toV = this.agents.get(toId);
+    if (!fromV || !toV) return null;
+    const fromPos = this.headPosOf(fromV);
+    const toPos = this.headPosOf(toV);
+    const arcBoost = slotIndex * 0.32;
+    const curve = this.buildBeamCurve(fromPos, toPos, arcBoost);
+
+    const group = new THREE.Group();
+    group.name = `task-beam-${key}`;
+    group.userData.noAO = true;
+
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#00E5FF').multiplyScalar(1.8),
+      transparent: true,
+      opacity: 0.01,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const auraMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#3B82F6').multiplyScalar(1.4),
+      transparent: true,
+      opacity: 0.01,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const coreMesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 32, 0.028, 8, false), coreMat);
+    const auraMesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 32, 0.075, 8, false), auraMat);
+    coreMesh.userData.noAO = true;
+    auraMesh.userData.noAO = true;
+    group.add(auraMesh, coreMesh);
+
+    const photonGeo = new THREE.SphereGeometry(0.068, 10, 8);
+    const photonMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#67E8F9').multiplyScalar(2.6),
+      transparent: true,
+      opacity: 0.01,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const photons = [0, 0.33, 0.66].map((offset) => {
+      const p = new THREE.Mesh(photonGeo, photonMat);
+      p.userData.noAO = true;
+      p.userData.offset = offset;
+      p.position.copy(curve.getPoint(offset));
+      group.add(p);
+      return p;
+    });
+
+    this.scene.add(group);
+    const beam = {
+      key,
+      fromId,
+      toId,
+      arcBoost,
+      group,
+      curve,
+      fromPos,
+      toPos,
+      coreMesh,
+      auraMesh,
+      coreMat,
+      auraMat,
+      photonGeo,
+      photonMat,
+      photons,
+      alpha: 0.01,
+      fading: false,
+      phase: Math.random() * Math.PI * 2,
+    };
+    this.taskBeams.set(key, beam);
+    return beam;
+  }
+
+  setActiveTasks(tasks = []) {
+    this.lastActiveTasks = Array.isArray(tasks) ? tasks : [];
+    const activeKeys = new Set();
+    const pairCounts = new Map();
+
+    for (const t of this.lastActiveTasks) {
+      if (!t) continue;
+      const st = String(t.status || '').toLowerCase();
+      if (st !== 'running' && st !== 'working' && st !== 'in-progress') continue;
+      const fromId = t.fromAgentId || t.senderAgentId || null;
+      const toId = t.targetAgentId || t.agentId || null;
+      if (!fromId || !toId || fromId === toId) continue;
+      if (!this.agents.has(fromId) || !this.agents.has(toId)) continue;
+
+      const key = String(t.id || `${fromId}->${toId}`);
+      activeKeys.add(key);
+      const pairKey = fromId < toId ? `${fromId}|${toId}` : `${toId}|${fromId}`;
+      const slotIndex = pairCounts.get(pairKey) ?? 0;
+      pairCounts.set(pairKey, slotIndex + 1);
+
+      const existing = this.taskBeams.get(key);
+      if (existing) {
+        existing.fading = false;
+        existing.fromId = fromId;
+        existing.toId = toId;
+      } else {
+        this.createTaskBeam(key, fromId, toId, slotIndex);
+      }
+    }
+
+    for (const [key, beam] of this.taskBeams.entries()) {
+      if (!activeKeys.has(key)) beam.fading = true;
+    }
+  }
+
+  updateTaskBeams(dt, t) {
+    if (!this.taskBeams.size) return;
+    for (const [key, beam] of this.taskBeams.entries()) {
+      const fromV = this.agents.get(beam.fromId), toV = this.agents.get(beam.toId);
+      if (!fromV || !toV) beam.fading = true;
+
+      beam.alpha += ((beam.fading ? 0 : 1) - beam.alpha) * Math.min(1, dt * (beam.fading ? 3.5 : 5.0));
+      if (beam.fading && beam.alpha <= 0.015) {
+        this.disposeTaskBeam(beam);
+        this.taskBeams.delete(key);
+        continue;
+      }
+
+      if (fromV && toV) {
+        const nextFrom = this.headPosOf(fromV);
+        const nextTo = this.headPosOf(toV);
+        if (nextFrom.distanceToSquared(beam.fromPos) > 0.0004 || nextTo.distanceToSquared(beam.toPos) > 0.0004) {
+          beam.fromPos.copy(nextFrom);
+          beam.toPos.copy(nextTo);
+          beam.curve = this.buildBeamCurve(nextFrom, nextTo, beam.arcBoost);
+          beam.coreMesh.geometry.dispose();
+          beam.auraMesh.geometry.dispose();
+          beam.coreMesh.geometry = new THREE.TubeGeometry(beam.curve, 32, 0.028, 8, false);
+          beam.auraMesh.geometry = new THREE.TubeGeometry(beam.curve, 32, 0.075, 8, false);
+        }
+      }
+
+      const pulse = 0.82 + 0.18 * Math.sin(t * 4.2 + beam.phase);
+      beam.coreMat.opacity = 0.92 * beam.alpha * pulse;
+      beam.auraMat.opacity = 0.34 * beam.alpha * pulse;
+      beam.photonMat.opacity = 0.98 * beam.alpha;
+
+      for (const p of beam.photons) {
+        const u = (t * 0.55 + p.userData.offset) % 1;
+        p.position.copy(beam.curve.getPoint(u));
+        const scale = 0.75 + 0.35 * Math.sin(u * Math.PI);
+        p.scale.setScalar(scale);
+      }
+    }
+  }
+
+  disposeTaskBeam(beam) {
+    this.scene?.remove(beam.group);
+    beam.coreMesh.geometry.dispose();
+    beam.auraMesh.geometry.dispose();
+    beam.coreMat.dispose();
+    beam.auraMat.dispose();
+    beam.photonGeo.dispose();
+    beam.photonMat.dispose();
+  }
+
+  disposeTaskBeams() {
+    for (const beam of this.taskBeams.values()) this.disposeTaskBeam(beam);
+    this.taskBeams.clear();
+  }
+
   // ================================================================ camera & drone tuần tra
   loadDrone() {
     try { const v = localStorage.getItem('office.drone'); return v === null ? true : v === '1'; }
@@ -1133,6 +1318,7 @@ export class Office3D {
       if (c.t >= 1) { this.scene.remove(c.dot, c.trail); c.dot.geometry.dispose(); c.trail.geometry.dispose(); c.dot.material.dispose(); c.trail.material.dispose(); this.couriers.splice(i, 1); continue; }
       c.dot.position.copy(c.curve.getPoint(c.t)); c.trail.material.opacity = 0.5 * (1 - c.t);
     }
+    this.updateTaskBeams(dt, t);
     if (this.camAnim) {
       const a = this.camAnim; a.t += dt / a.dur;
       const k = a.t >= 1 ? 1 : 1 - Math.pow(1 - a.t, 3);

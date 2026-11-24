@@ -43,7 +43,16 @@ export async function viewerState() {
       const createdAt = Date.parse(t.createdAt) || null;
       const startedAt = Date.parse(t.startedAt) || null;
       const finishedAt = Date.parse(t.finishedAt) || (['done', 'failed', 'cancelled'].includes(t.status) ? updatedAt : null);
-      return { ...t, createdAt, startedAt, updatedAt, finishedAt };
+      return {
+        ...t,
+        fromAgentId: t.fromAgentId ?? t.senderAgentId ?? null,
+        senderAgentId: t.senderAgentId ?? t.fromAgentId ?? null,
+        targetAgentId: t.targetAgentId ?? t.agentId,
+        createdAt,
+        startedAt,
+        updatedAt,
+        finishedAt,
+      };
     });
     const agents = data.agents.map(a => ({ ...a, status: a.state, provider: '', departmentId: layout.seats[a.id] ?? layout.departments.find(d => d.style?.shape === 'zone')?.id, currentTask: tasks.find(t => t.id === a.currentTaskId), queued: tasks.filter(t => t.agentId === a.id && t.status === 'queued').length }));
     latest = data.updatedAt; failed = false;
