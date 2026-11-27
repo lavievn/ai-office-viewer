@@ -17,7 +17,7 @@ import { MixamoLibrary } from './mixamo.js';
 import { Assets } from './assets.js';
 import { NavGrid } from './nav.js';
 import * as L from './leisure.js';
-import { SpeechLayer } from './speech.js?v=office-fun-r2';
+import { SpeechLayer } from './speech.js?v=office-fun-r2b';
 
 const FLOOR = { w: 36, d: 28 };
 const TERRACE = 2.6;

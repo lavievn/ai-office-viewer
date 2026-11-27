@@ -1,8 +1,8 @@
 // Ứng dụng văn phòng ảo: dữ liệu, WebSocket, HUD, panel nhân viên, modal. Cảnh 3D nằm trong scene/office3d.js
-import { Office3D, QUALITY } from './scene/office3d.js?v=office-fun-r2';
-import { presentAgent } from './agent-dialogues.js?v=office-fun-r2';
+import { Office3D, QUALITY } from './scene/office3d.js?v=office-fun-r2b';
+import { presentAgent } from './agent-dialogues.js?v=office-fun-r2b';
 
-import { READ_ONLY, installViewerGuard, viewerState } from './viewer.js?v=office-fun-r2';
+import { READ_ONLY, installViewerGuard, viewerState } from './viewer.js?v=office-fun-r2b';
 installViewerGuard();
 
 const TOKEN = document.querySelector('meta[name="office-token"]').content;

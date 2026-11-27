@@ -1,4 +1,4 @@
-import { presentAgent } from './agent-dialogues.js?v=office-fun-r2';
+import { presentAgent } from './agent-dialogues.js?v=office-fun-r2b';
 import { decryptStatus } from './viewer-crypto.js';
 export const READ_ONLY = globalThis.READ_ONLY_VIEWER === true;
 let latest, failed = false;

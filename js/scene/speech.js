@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DialogueDirector, installSpeechStyle, updateBubble } from '../agent-speech.js?v=office-fun-r2';
+import { DialogueDirector, installSpeechStyle, updateBubble } from '../agent-speech.js?v=office-fun-r2b';
 
 export class SpeechLayer {
   constructor(container) {
@@ -20,7 +20,7 @@ export class SpeechLayer {
     const visuals=[...office.agents].sort(([,a],[,b])=>Number(b.status==='working')-Number(a.status==='working'));
     for (const [id,v] of visuals) {
       const voice=voices.get(id); let el=this.elements.get(id);
-      if (!el) {el=document.createElement('div');el.className='office-bubble';el.dataset.agentId=id;el.append(document.createElement('span'));this.layer.append(el);this.elements.set(id,el);}
+      if (!el) {el=document.createElement('div');el.className='office-bubble quiet';el.dataset.agentId=id;el.append(document.createElement('span'));this.layer.append(el);this.elements.set(id,el);}
       updateBubble(el,voice);
       this.point.copy(v.label.position);this.point.y+=.55;this.point.project(office.camera);
       const visible=!voice.hidden && this.point.z>=-1 && this.point.z<=1 && Math.abs(this.point.x)<1 && Math.abs(this.point.y)<1;

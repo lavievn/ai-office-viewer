@@ -1,4 +1,4 @@
-import { personaFor, CAFE_BANTER } from './agent-dialogues.js?v=office-fun-r2';
+import { personaFor, CAFE_BANTER } from './agent-dialogues.js?v=office-fun-r2b';
 
 export const MIN_BUBBLE_INTERVAL_MS = 20000;
 export const MAX_BUBBLE_INTERVAL_MS = 30000;
@@ -32,7 +32,7 @@ export class DialogueDirector {
     const live = new Set(agents.map(a => a.id));
     for (const id of this.voices.keys()) if (!live.has(id)) this.voices.delete(id);
     this.nextChat ??= now + this.interval();
-    const cafe = agents.filter(a => a.zone === 'cafe' && ['idle','cafe'].includes(a.status ?? a.state) && dialogueState(a) === 'idle');
+    const cafe = agents.filter(a => a.zone === 'cafe' && ['idle','cafe'].includes(a.status ?? a.state));
     const eligible = new Set(cafe.map(a => a.id));
     if (this.chat && this.chat.pair.some(id => !eligible.has(id))) { this.chat = null; this.nextChat = now + this.interval(); }
     for (const a of agents) {
@@ -89,11 +89,12 @@ export class DialogueDirector {
 export function installSpeechStyle() {
   if (document.getElementById('office-speech-style')) return;
   const style=document.createElement('style'); style.id='office-speech-style';
-  style.textContent=` .office-bubble{pointer-events:none;border:1px solid #dcc8a955;border-radius:12px;background:rgba(20,27,40,.88);color:#fff4df;padding:7px 10px;font:500 12px/1.4 "Be Vietnam Pro",sans-serif;box-shadow:0 3px 14px #0005;overflow:hidden;max-width:210px;box-sizing:border-box;transition:opacity .25s,scale .25s;scale:1;opacity:1}.office-bubble>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-height:2.8em}.office-bubble.fresh{animation:office-say .3s ease-out}.office-bubble.quiet{opacity:0;scale:.94}.office-speech-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:3}.office-speech-layer .office-bubble{position:absolute;width:190px;transform:translate(-50%,-100%)}.office-card-speech{margin:6px 0;min-height:32px}@keyframes office-say{from{opacity:0;scale:.94}to{opacity:1;scale:1}}@media(prefers-reduced-motion:reduce){.office-bubble{animation:none!important;transition:none}}`;
+  style.textContent=` .office-bubble{pointer-events:none;border:1px solid #dcc8a955;border-radius:12px;background:rgba(20,27,40,.88);color:#fff4df;padding:7px 10px;font:500 12px/1.4 "Be Vietnam Pro",sans-serif;box-shadow:0 3px 14px #0005;overflow:hidden;max-width:210px;box-sizing:border-box;transition:opacity .25s,scale .25s;scale:1;opacity:1}.office-bubble>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-height:2.8em}.office-bubble.fresh:not(.quiet){animation:office-say .3s ease-out}.office-bubble.quiet{opacity:0;scale:.94}.office-speech-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:3}.office-speech-layer .office-bubble{position:absolute;width:190px;transform:translate(-50%,-100%)}.office-card-speech{margin:6px 0;min-height:32px}@keyframes office-say{from{opacity:0;scale:.94}to{opacity:1;scale:1}}@media(prefers-reduced-motion:reduce){.office-bubble{animation:none!important;transition:none}}`;
   document.head.append(style);
 }
 
 export function updateBubble(el, voice) {
+  if (!voice.revision) return;
   if (el.dataset.revision !== String(voice.revision)) {
     el.firstChild.textContent=voice.text; el.dataset.revision=voice.revision;
     el.classList.remove('fresh'); void el.offsetWidth; el.classList.add('fresh');
