@@ -17,6 +17,7 @@ import { MixamoLibrary } from './mixamo.js';
 import { Assets } from './assets.js';
 import { NavGrid } from './nav.js';
 import * as L from './leisure.js';
+import { SpeechLayer } from './speech.js?v=office-fun-r2';
 
 const FLOOR = { w: 36, d: 28 };
 const TERRACE = 2.6;
@@ -48,6 +49,7 @@ export const QUALITY = { high: 'Căng đét', medium: 'Vừa mắt', low: 'Tiế
 export class Office3D {
   constructor(container, { onPick, onHover, onProgress } = {}) {
     this.container = container;
+    this.speech = new SpeechLayer(container);
     this.onPick = onPick; this.onHover = onHover; this.onProgress = onProgress;
     this.agents = new Map();     // agentId → visual
     this.clusters = [];          // nhóm bàn có đèn thả
@@ -1329,6 +1331,7 @@ export class Office3D {
       this.updateDrone(dt, t);
     }
     this.controls.update();
+    if (render) this.speech.update(this, performance.now());
     if (!render) return;
     this.renderer.info.reset();
     if (this.composer) this.composer.render(dt); else this.renderer.render(this.scene, this.camera);

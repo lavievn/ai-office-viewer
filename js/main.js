@@ -1,7 +1,8 @@
 // Ứng dụng văn phòng ảo: dữ liệu, WebSocket, HUD, panel nhân viên, modal. Cảnh 3D nằm trong scene/office3d.js
-import { Office3D, QUALITY } from './scene/office3d.js';
+import { Office3D, QUALITY } from './scene/office3d.js?v=office-fun-r2';
+import { presentAgent } from './agent-dialogues.js?v=office-fun-r2';
 
-import { READ_ONLY, installViewerGuard, viewerState } from './viewer.js';
+import { READ_ONLY, installViewerGuard, viewerState } from './viewer.js?v=office-fun-r2';
 installViewerGuard();
 
 const TOKEN = document.querySelector('meta[name="office-token"]').content;
@@ -474,7 +475,7 @@ function closePanel({ fromDrone = false } = {}) {
 function renderPanel() {
   const a = agentById(selectedId); if (!a) return closePanel();
   $('#p-name').textContent = a.name;
-  $('#p-role').textContent = `${a.role || 'Chuyên gia ngồi bàn'} · ${deptById(a.departmentId)?.name ?? ''}`;
+  $('#p-role').textContent = `${a.role || 'Chuyên gia ngồi bàn'} · ${deptById(a.departmentId)?.name ?? ''} · ${a.personality ?? ''}`;
   const chips = [
     `<span class="chip status-${a.status}">${STATUS_LABEL[a.status] ?? a.status}</span>`,
     `<span class="chip">${PROVIDER_LABEL[a.provider] ?? a.provider}</span>`,
@@ -742,7 +743,9 @@ $('#btn-cost').onclick = () => {
 async function loadState() {
   const s = await api('/state');
   Object.assign(state, s);
+  state.agents = state.agents.map(presentAgent);
   office.setData(state.departments, state.agents);
+  office.speech.setAgents(state.agents, state.tasks);
   office.setActiveTasks(state.tasks);
   renderHud(); renderTaskBoard(); renderFeed(); if (selectedId) renderPanel(); if (READ_ONLY && selectedTaskId && $('#modal').classList.contains('open')) renderViewerTask(); if (READ_ONLY && $('#cost-box')) renderCost();
 }

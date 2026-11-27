@@ -1,3 +1,4 @@
+import { presentAgent } from './agent-dialogues.js?v=office-fun-r2';
 import { decryptStatus } from './viewer-crypto.js';
 export const READ_ONLY = globalThis.READ_ONLY_VIEWER === true;
 let latest, failed = false;
@@ -54,7 +55,7 @@ export async function viewerState() {
         finishedAt,
       };
     });
-    const agents = data.agents.map(a => ({ ...a, status: a.state === 'reviewing' ? 'working' : a.state, provider: a.providerLabel ?? '', departmentId: a.departmentId ?? layout.seats[a.id] ?? layout.departments.find(d => d.style?.shape === 'zone')?.id, currentTask: tasks.find(t => t.id === a.currentTaskId), queued: tasks.filter(t => t.agentId === a.id && t.status === 'queued').length }));
+    const agents = data.agents.map(a => ({ ...presentAgent(a), status: a.state === 'reviewing' ? 'working' : a.state, provider: a.providerLabel ?? '', departmentId: a.departmentId ?? layout.seats[a.id] ?? layout.departments.find(d => d.style?.shape === 'zone')?.id, currentTask: tasks.find(t => t.id === a.currentTaskId), queued: tasks.filter(t => t.agentId === a.id && t.status === 'queued').length }));
     latest = data.updatedAt; failed = false;
     return { departments: layout.departments, agents, tasks, permissions: [], feed: data.feed ?? [], costSummary: data.costSummary };
   } catch (error) { failed = true; throw error; }
